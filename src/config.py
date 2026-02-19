@@ -1,6 +1,7 @@
 """
 Configuração do wrapper: BASE_URL da API real, pasta de cache, porta do servidor
 e carga do arquivo de endereçamento (chave -> path real).
+Responsabilidade: centralizar variáveis de ambiente e mapeamento de endpoints (path, default_params, slug para nomes de cache).
 """
 import os
 from pathlib import Path
@@ -60,6 +61,20 @@ ENDPOINTS_FILE = PROJECT_ROOT / "config" / "api_endpoints.json"
 # Cache do mapeamento (carregado sob demanda)
 _endpoints_map: dict | None = None
 _endpoints_full: dict | None = None
+
+# Slug curto por endpoint para nomes de arquivo no cache (ex.: report_lia -> liareport)
+# Padrão: optimized_liareport_20260219_143022.json
+ENDPOINT_SLUGS: dict[str, str] = {"report_lia": "liareport"}
+
+
+def get_endpoint_slug(endpoint_key: str) -> str:
+    """
+    Retorna um slug curto para o endpoint, usado em nomes de arquivo no cache.
+    Ex.: report_lia -> liareport. Endpoints não mapeados usam a chave normalizada (underscores).
+    """
+    if endpoint_key in ENDPOINT_SLUGS:
+        return ENDPOINT_SLUGS[endpoint_key]
+    return endpoint_key.replace("-", "_").strip() or "default"
 
 
 def _load_endpoints_raw() -> dict:

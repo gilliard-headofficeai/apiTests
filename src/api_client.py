@@ -1,6 +1,7 @@
 """
 Cliente da API real: monta URL a partir de base + path e executa GET com query params.
 A API real exige o header X-API-Key; o valor vem de GENERAL_REPORT_API_KEY no .env.
+Responsabilidade: única camada que faz HTTP para o backend; usado pelo wrapper_server.
 """
 import requests
 from src.config import BASE_URL, GENERAL_REPORT_API_KEY, resolve_path

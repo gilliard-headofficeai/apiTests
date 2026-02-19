@@ -1,6 +1,7 @@
 """
 Otimização do JSON da API: remove duplicatas e reduz estrutura repetida,
 mantendo ordem das mensagens e consistência dos dados.
+Responsabilidade: transformar a resposta bruta em um payload menor e padronizado (sender, dataCollectFromUser, meta.agent); usado pelo wrapper_server antes de salvar e devolver.
 """
 from copy import deepcopy
 

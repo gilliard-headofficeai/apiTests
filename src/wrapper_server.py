@@ -1,6 +1,8 @@
 """
 Servidor HTTP (FastAPI) que expõe rotas /wrapper/{endpoint_key}.
 Repassa query params à API real, salva bruto, otimiza e devolve JSON otimizado.
+Arquivos no cache usam o padrão slug + timestamp (ex.: optimized_liareport_20260219_143022.json).
+Responsabilidade: orquestrar uma requisição (fetch -> save raw -> optimize -> save optimized -> run_comparison -> return); ponto de entrada HTTP do projeto.
 """
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -38,10 +40,11 @@ async def wrapper_get(endpoint_key: str, request: Request):
         raw = fetch_json(endpoint_key, params=params)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao chamar API real: {e}") from e
-    save_raw(endpoint_key, raw, params=params)
+    # Usar "latest" para substituir o cache a cada nova chamada do mesmo endpoint
+    save_raw(endpoint_key, raw, params=params, timestamp="latest")
     optimized = optimize_report_response(raw)
-    save_optimized(endpoint_key, optimized, params=params)
-    run_comparison(endpoint_key, params, raw=raw, optimized=optimized)
+    save_optimized(endpoint_key, optimized, params=params, timestamp="latest")
+    run_comparison(endpoint_key, params, raw=raw, optimized=optimized, timestamp="latest")
     return JSONResponse(
         content=optimized,
         headers={"X-Wrapper-Optimized": "true"},

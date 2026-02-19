@@ -44,13 +44,23 @@ Não é necessário enviar header de API key no Postman: o wrapper usa `GENERAL_
    python main.py
    ```
 2. No console será impressa a **URL pública do ngrok** (ex.: `https://abc123.ngrok-free.app`). Use-a no Lovable.
-3. Exemplo de chamada para o front:
+3. Exemplo de chamada para o front (substitua pela sua URL ngrok):
    ```
    GET https://<sua-url>.ngrok-free.app/wrapper/report_lia?from=2026-01-01&to=2026-01-14
    ```
 4. No Lovable: configure a base URL do relatório como `https://<sua-url>.ngrok-free.app` e o path como `/wrapper/report_lia`; envie só `from` e `to` no período.
 
-**Requisito:** ngrok configurado com authtoken (`ngrok config add-authtoken <seu-token>`).
+### Exemplo com URL real (ngrok)
+
+| Uso | Valor |
+|-----|--------|
+| **Base URL (Lovable)** | `https://vulnerably-bilabiate-andreas.ngrok-free.dev` |
+| **Path do relatório** | `/wrapper/report_lia` |
+| **Chamada completa (GET)** | `https://vulnerably-bilabiate-andreas.ngrok-free.dev/wrapper/report_lia?from=2026-01-01&to=2026-01-14` |
+
+No Lovable: use a base URL acima e, ao mudar o período no date picker, monte a query com `from` e `to` (YYYY-MM-DD). Não é necessário enviar header `X-API-Key`; o wrapper adiciona isso ao chamar a API real.
+
+**Requisito:** ngrok instalado e configurado com authtoken (`ngrok config add-authtoken <seu-token>`). O `main.py` inicia o comando `ngrok http 8000` no mesmo processo.
 
 ---
 

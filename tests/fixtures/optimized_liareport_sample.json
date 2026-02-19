@@ -1,0 +1,38 @@
+{
+  "statusCode": 200,
+  "msg": "OK",
+  "meta": { "agent": { "firstName": "LIA" } },
+  "data": [
+    {
+      "dataCollectFromUser": {
+        "name": "João",
+        "birthDate": "1995-03-10",
+        "state": "SP",
+        "city": "São Paulo"
+      },
+      "Full Conversation": [
+        { "sender": "agent", "message": "Olá! Como posso ajudar?" },
+        { "sender": "user", "message": "Quero informações." },
+        { "sender": "agent", "message": "Claro, segue." }
+      ],
+      "createdAt": "2026-01-14T14:30:00Z"
+    },
+    {
+      "dataCollectFromUser": {
+        "name": "Maria",
+        "birthDate": "2010-08-01",
+        "state": "RJ"
+      },
+      "Full Conversation": [
+        { "sender": "agent", "message": "Oi!" },
+        { "sender": "user", "message": "Oi" }
+      ],
+      "createdAt": "2026-01-14T15:00:00Z"
+    },
+    {
+      "dataCollectFromUser": { "state": "MG" },
+      "Full Conversation": [{ "sender": "agent", "message": "Oi" }],
+      "createdAt": "2026-01-14T20:30:00Z"
+    }
+  ]
+}

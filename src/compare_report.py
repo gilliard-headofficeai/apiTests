@@ -1,6 +1,7 @@
 """
 Comparação entre JSON bruto (backend real) e JSON otimizado (nosso).
-Gera relatório em Markdown, HTML lado a lado e opcionalmente métricas em JSON.
+Gera relatório em Markdown, HTML lado a lado e métricas em JSON.
+Responsabilidade: carregar par raw/optimized do cache (por params ou par mais recente), comparar tamanhos e alterações, salvar comparison_<slug>_<timestamp>.md/.html/.json; usado pelo wrapper_server e via CLI.
 """
 import html
 import json
@@ -8,6 +9,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from src.config import get_endpoint_slug
 from src.storage import get_cache_folder, _suffix_from_params
 
 # Chaves em pt que o optimizer consolida para en (espelho do optimizer)
@@ -26,18 +28,21 @@ def _safe_suffix(params: dict | None) -> str:
 def get_raw_and_optimized_paths(endpoint_key: str, params: dict | None) -> tuple[Path | None, Path | None]:
     """
     Retorna (path_raw, path_optimized) para o endpoint e params.
-    Se params for None, tenta usar o par mais recente no folder (por data de modificação).
+    Se params for None, usa o par mais recente (por mtime), seja com nome antigo (from=..._to=...)
+    seja com nome novo (liareport_YYYYMMDD_HHMMSS).
+    Se params for informado, tenta primeiro o sufixo antigo; se não achar, usa o par mais recente.
     """
     folder = get_cache_folder(endpoint_key)
     if params is not None:
         safe = _safe_suffix(params)
         raw_path = folder / f"raw_{safe}.json"
         opt_path = folder / f"optimized_{safe}.json"
-        return (raw_path if raw_path.exists() else None, opt_path if opt_path.exists() else None)
-    # Par mais recente: procurar raw_*.json e paired optimized
+        if raw_path.exists() and opt_path.exists():
+            return (raw_path, opt_path)
+    # Par mais recente: raw_*.json com optimized_<mesmo sufixo>.json
     raw_files = sorted(folder.glob("raw_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     for raw_path in raw_files:
-        suffix = raw_path.stem.replace("raw_", "")
+        suffix = raw_path.stem.replace("raw_", "", 1)
         opt_path = folder / f"optimized_{suffix}.json"
         if opt_path.exists():
             return (raw_path, opt_path)
@@ -247,13 +252,19 @@ def save_comparison_report(
     report_md: str,
     report_html: str,
     metrics: dict,
+    timestamp: str | None = None,
 ) -> tuple[Path, Path, Path]:
     """
-    Salva relatório .md, .html e opcionalmente .json de métricas na pasta do endpoint.
-    Retorna (path_md, path_html, path_json).
+    Salva relatório .md, .html e .json de métricas na pasta do endpoint.
+    Se timestamp for informado, usa comparison_<slug>_<timestamp> (ex.: comparison_liareport_20260219_143022).
+    Caso contrário, usa o sufixo derivado dos params. Retorna (path_md, path_html, path_json).
     """
     folder = get_cache_folder(endpoint_key)
-    safe = _safe_suffix(params)
+    if timestamp:
+        slug = get_endpoint_slug(endpoint_key)
+        safe = f"{slug}_{timestamp}"
+    else:
+        safe = _safe_suffix(params)
     path_md = folder / f"comparison_{safe}.md"
     path_html = folder / f"comparison_{safe}.html"
     path_json = folder / f"comparison_{safe}.json"
@@ -278,9 +289,11 @@ def run_comparison(
     params: dict | None,
     raw: dict | None = None,
     optimized: dict | None = None,
+    timestamp: str | None = None,
 ) -> tuple[Path, Path, Path] | None:
     """
     Carrega (ou usa os dicts passados), compara, gera e salva relatório .md, .html e .json.
+    Se timestamp for passado (ex. pelo wrapper_server), os arquivos de comparação usam o mesmo padrão slug_timestamp.
     Retorna (path_md, path_html, path_json) ou None se não houver par para comparar.
     """
     if raw is None or optimized is None:
@@ -290,7 +303,7 @@ def run_comparison(
     metrics = compare_responses(raw, optimized)
     report_md = generate_comparison_report(raw, optimized, endpoint_key, params, metrics)
     report_html = generate_comparison_html(raw, optimized, endpoint_key, params, metrics)
-    return save_comparison_report(endpoint_key, params, report_md, report_html, metrics)
+    return save_comparison_report(endpoint_key, params, report_md, report_html, metrics, timestamp=timestamp)
 
 
 if __name__ == "__main__":
