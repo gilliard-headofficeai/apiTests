@@ -1,0 +1,12 @@
+{
+  "report_agent": "v1/convesation/download-report/agent",
+  "report_by_channel": "v1/convesation/download-report/by-channel",
+  "report_lia": {
+    "path": "v1/convesation/download-report/agent",
+    "default_params": {
+      "agentId": "68fbc1cecf793a2cbf2159ab",
+      "by": 1,
+      "messageHistory": true
+    }
+  }
+}

@@ -65,6 +65,9 @@ db.sqlite3-journal
 instance/
 .webassets-cache
 
+# Wrapper API: cache local de JSON bruto/otimizado
+cache/
+
 # Scrapy stuff:
 .scrapy
 
