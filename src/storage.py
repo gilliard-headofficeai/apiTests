@@ -1,7 +1,7 @@
 """
-Persistência local: cria pasta por endpoint (chave ou path normalizado) e salva JSON bruto/otimizado.
-Nomes de arquivo no cache seguem o padrão: raw_<slug>_<timestamp>.json e optimized_<slug>_<timestamp>.json
-(ex.: raw_liareport_20260219_143022.json), para reutilização em outras soluções.
+Persistência local: cria pasta por endpoint (chave ou path normalizado) e salva JSON bruto, otimizado e dashboard.
+Nomes: raw_<slug>.json, optimized_<slug>.json, dashboard_<slug>.json (ex.: raw_liareport.json, optimized_liareport.json, dashboard_liareport.json).
+Cada nova chamada substitui os arquivos do mesmo endpoint. Padrão reutilizável para outras soluções.
 Responsabilidade: definir onde e com que nome os arquivos são gravados; usado pelo wrapper e pelo compare_report.
 """
 import json
@@ -57,12 +57,15 @@ def _cache_suffix(
     timestamp: str | None,
 ) -> str:
     """
-    Sufixo para nomes de arquivo no cache.
-    Se timestamp for "latest", usa slug_latest (ex.: liareport_latest) e cada nova chamada substitui o arquivo.
-    Se timestamp for outro valor, usa slug_timestamp. Se None, usa sufixo derivado dos params.
+    Sufixo para nomes de arquivo no cache (parte após raw_/optimized_/comparison_).
+    Se timestamp for "latest", usa só o slug (ex.: liareport) — nomes curtos, cada chamada substitui.
+    Se timestamp for outro valor (ex.: 20260219_143022), usa slug_timestamp.
+    Se None, usa sufixo derivado dos params (compatibilidade com cache antigo).
     """
     if timestamp:
         slug = get_endpoint_slug(endpoint_key_or_path) if "/" not in endpoint_key_or_path else "default"
+        if timestamp == "latest":
+            return slug
         return f"{slug}_{timestamp}"
     return _suffix_from_params(params)
 
@@ -75,7 +78,7 @@ def save_raw(
 ) -> Path:
     """
     Salva o JSON bruto na pasta do endpoint.
-    Se timestamp for passado (ex.: 20260219_143022), o arquivo será raw_<slug>_<timestamp>.json.
+    Com timestamp="latest" gera raw_<slug>.json (ex.: raw_liareport.json); cada chamada substitui.
     Retorna o Path do arquivo salvo.
     """
     folder = get_cache_folder(endpoint_key_or_path)
@@ -96,13 +99,34 @@ def save_optimized(
 ) -> Path:
     """
     Salva o JSON otimizado na pasta do endpoint.
-    Use o mesmo timestamp passado a save_raw na mesma requisição para manter par raw/optimized.
+    Com timestamp="latest" gera optimized_<slug>.json (ex.: optimized_liareport.json); cada chamada substitui.
     Retorna o Path do arquivo salvo.
     """
     folder = get_cache_folder(endpoint_key_or_path)
     suffix = _cache_suffix(endpoint_key_or_path, params, timestamp)
     safe_suffix = re.sub(r"[^\w\-=.]", "_", suffix)
     fname = f"optimized_{safe_suffix}.json"
+    path = folder / fname
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return path
+
+
+def save_dashboard(
+    endpoint_key_or_path: str,
+    data: dict,
+    params: dict | None = None,
+    timestamp: str | None = None,
+) -> Path:
+    """
+    Salva o JSON tratado para dashboards (visao_geral, etc.) na pasta do endpoint.
+    Com timestamp="latest" gera dashboard_<slug>.json (ex.: dashboard_liareport.json); cada chamada substitui.
+    Retorna o Path do arquivo salvo. Útil para conferência local da resposta padrão do wrapper.
+    """
+    folder = get_cache_folder(endpoint_key_or_path)
+    suffix = _cache_suffix(endpoint_key_or_path, params, timestamp)
+    safe_suffix = re.sub(r"[^\w\-=.]", "_", suffix)
+    fname = f"dashboard_{safe_suffix}.json"
     path = folder / fname
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)

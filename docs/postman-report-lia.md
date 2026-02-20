@@ -33,7 +33,36 @@
 GET http://localhost:8000/wrapper/report_lia?from=2026-01-01&to=2026-01-14
 ```
 
-Não é necessário enviar header de API key no Postman: o wrapper usa `GENERAL_REPORT_API_KEY` do `.env` ao chamar a API real. A resposta é o JSON **otimizado** (menos linhas, `sender` como `agent`/`user`, `meta.agent` no topo).
+Não é necessário enviar header de API key no Postman: o wrapper usa `GENERAL_REPORT_API_KEY` do `.env` ao chamar a API real.
+
+**Resposta padrão:** o wrapper devolve o JSON **tratado para dashboards** (ex.: `visao_geral` com total_conversas, mensagens_lia, distribuicao_por_estado, faixa_etaria, etc.) — ideal para o Lovable.  
+Para receber o relatório otimizado completo, use **`view=full`** na query.
+
+Exemplo (resposta = dashboard tratado):
+```
+GET http://localhost:8000/wrapper/report_lia?from=2026-01-01&to=2026-01-14
+```
+Relatório completo (quando precisar):
+```
+GET http://localhost:8000/wrapper/report_lia?from=2026-01-01&to=2026-01-14&view=full
+```
+
+### Arquivos no cache (conferência local)
+
+Após cada chamada ao wrapper, na pasta `cache/report_lia/` ficam salvos:
+
+| Arquivo | Conteúdo |
+|---------|----------|
+| `raw_liareport.json` | Resposta bruta da API real |
+| `optimized_liareport.json` | Relatório otimizado (estrutura completa) |
+| **`dashboard_liareport.json`** | **JSON tratado para dashboards** — igual à resposta padrão do wrapper (visao_geral, total_conversas, mensagens_lia, etc.). Use para conferir localmente o que o Postman ou o Lovable recebem. |
+| `comparison_liareport.md` / `.html` / `.json` | Relatórios de comparação raw vs otimizado |
+
+Exemplo com ngrok (mesma resposta tratada):
+```
+GET https://vulnerably-bilabiate-andreas.ngrok-free.dev/wrapper/report_lia?from=2026-01-01&to=2026-02-19
+```
+A resposta (visao_geral, distribuição por estado, faixa etária, atendimentos por hora, etc.) fica também em `cache/report_lia/dashboard_liareport.json`.
 
 ---
 

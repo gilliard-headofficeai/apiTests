@@ -256,13 +256,14 @@ def save_comparison_report(
 ) -> tuple[Path, Path, Path]:
     """
     Salva relatório .md, .html e .json de métricas na pasta do endpoint.
-    Se timestamp for informado, usa comparison_<slug>_<timestamp> (ex.: comparison_liareport_20260219_143022).
-    Caso contrário, usa o sufixo derivado dos params. Retorna (path_md, path_html, path_json).
+    Se timestamp for "latest", usa só comparison_<slug> (ex.: comparison_liareport.md).
+    Se timestamp for outro valor, usa comparison_<slug>_<timestamp>. Caso contrário, sufixo dos params.
+    Retorna (path_md, path_html, path_json).
     """
     folder = get_cache_folder(endpoint_key)
     if timestamp:
         slug = get_endpoint_slug(endpoint_key)
-        safe = f"{slug}_{timestamp}"
+        safe = slug if timestamp == "latest" else f"{slug}_{timestamp}"
     else:
         safe = _safe_suffix(params)
     path_md = folder / f"comparison_{safe}.md"

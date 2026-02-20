@@ -63,7 +63,7 @@ _endpoints_map: dict | None = None
 _endpoints_full: dict | None = None
 
 # Slug curto por endpoint para nomes de arquivo no cache (ex.: report_lia -> liareport)
-# Padrão: optimized_liareport_20260219_143022.json
+# Padrão de nomes no cache: raw_liareport.json, optimized_liareport.json (slug curto por endpoint)
 ENDPOINT_SLUGS: dict[str, str] = {"report_lia": "liareport"}
 
 

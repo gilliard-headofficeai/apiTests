@@ -20,20 +20,25 @@ Use a URL pública do ngrok (troque quando o túnel mudar):
 
 ### 1.3 Chamada completa (GET)
 
-A requisição que o Lovable deve fazer:
+**Resposta padrão do wrapper:** JSON tratado para dashboards (chave `visao_geral` com total_conversas, mensagens_lia, etc.). O Lovable chama uma vez e aninha `response.visao_geral` nos cards e gráficos da Visão Geral.
 
 ```
 GET https://vulnerably-bilabiate-andreas.ngrok-free.dev/wrapper/report_lia?from=YYYY-MM-DD&to=YYYY-MM-DD
 ```
 
-### 1.4 Parâmetros de query (obrigatórios)
+Não é necessário enviar `view=dashboard`: o wrapper já devolve o tratado por padrão. Use `view=full` só se precisar do relatório otimizado completo.
 
-O Lovable envia **apenas** estes parâmetros; o wrapper adiciona internamente `agentId`, `by`, `messageHistory`.
+O mesmo JSON da resposta é salvo em `cache/report_lia/dashboard_liareport.json` a cada chamada, para conferência local (ex.: após testar com `https://...ngrok-free.dev/wrapper/report_lia?from=2026-01-01&to=2026-02-19`).
+
+### 1.4 Parâmetros de query
 
 | Parâmetro | Obrigatório | Formato | Exemplo | Descrição |
 |-----------|-------------|---------|---------|-----------|
 | `from` | Sim | YYYY-MM-DD | `2026-01-01` | Data inicial do período |
 | `to`   | Sim | YYYY-MM-DD | `2026-01-14` | Data final do período |
+| `view` | Não | string | `full` | Omitido = resposta tratada (dashboard). `view=full` = JSON otimizado completo (relatório). |
+
+O wrapper adiciona internamente `agentId`, `by`, `messageHistory`; o Lovable envia apenas `from` e `to`.
 
 ### 1.5 Headers
 
@@ -49,9 +54,41 @@ O Lovable envia **apenas** estes parâmetros; o wrapper adiciona internamente `a
 
 ---
 
-## 2. Estrutura do JSON otimizado (resposta do wrapper)
+## 2. Resposta padrão (tratada para dashboards)
 
-O que o Lovable recebe ao chamar o endpoint acima:
+A resposta **padrão** do wrapper é um objeto com uma chave por página, por exemplo:
+
+```json
+{
+  "visao_geral": {
+    "total_conversas": 2632,
+    "mensagens_lia": 18424,
+    "distribuicao_por_estado": { "SP": 1380, "MG": 290, "RJ": 245, ... },
+    "faixa_etaria": { "0-17": 87, "18-24": 420, "25-34": 890, ... },
+    "menores_de_18": 87,
+    "percentual_menores_18": 3.3,
+    "fora_do_horario_count": 1000,
+    "fora_do_horario_percent": 38,
+    "atendimentos_por_hora": { "08:00": 120, "09:00": 180, ... },
+    "volume_conversas_por_dia": { "2026-01-01": 150, "2026-01-02": 162, ... },
+    "cohort_por_dia": { ... },
+    "compras_confirmadas": null,
+    "ticket_medio": null,
+    "leads_qualificados": null,
+    "agendamentos": null,
+    "taxa_conversao": null,
+    "efetividade_lia": null
+  }
+}
+```
+
+O front usa `response.visao_geral` para preencher os cards e gráficos da página Visão Geral. Campos `null` dependem de CSV ou regras de negócio (ver seção 3).
+
+---
+
+## 2b. Estrutura do JSON otimizado (quando usar view=full)
+
+O que o wrapper devolve ao chamar com **`view=full`** (relatório completo):
 
 ### 2.1 Nível raiz
 
