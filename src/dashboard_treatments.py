@@ -233,6 +233,36 @@ def build_visao_geral(optimized: dict) -> dict:
     }
 
 
+def _variacao_percent(atual: int | float, anterior: int | float) -> float | None:
+    """Calcula variação percentual ((atual - anterior) / anterior) * 100. Retorna None se anterior é 0."""
+    if anterior is None or anterior == 0:
+        return None
+    return round(((atual - anterior) / anterior) * 100, 2)
+
+
+def build_comparativo_mes_anterior(visao_atual: dict, visao_anterior: dict) -> dict:
+    """
+    Compara visao_geral do período atual com a do mês anterior.
+    Retorna um objeto por card com atual, anterior e variacao_percent (pronto para o front exibir "vs mês ant.: +X%").
+    """
+    out: dict = {}
+    campos = (
+        "total_conversas",
+        "mensagens_lia",
+        "menores_de_18",
+        "fora_do_horario_count",
+        "percentual_menores_18",
+        "fora_do_horario_percent",
+    )
+    for campo in campos:
+        a = visao_atual.get(campo)
+        b = visao_anterior.get(campo)
+        if a is not None and b is not None:
+            var = _variacao_percent(a, b)
+            out[campo] = {"atual": a, "anterior": b, "variacao_percent": var}
+    return out
+
+
 def build_dashboard_payload(optimized: dict) -> dict:
     """
     Retorna o payload completo do dashboard: uma chave por "página".

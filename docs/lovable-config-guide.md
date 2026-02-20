@@ -12,16 +12,14 @@ Este documento descreve como configurar a aplicação de front/dashboard para co
 
 ## 1. Configuração da API
 
-### 1.1 Base URL da API (placeholder)
+### 1.1 Base URL da API
 
-Use um **placeholder** configurável (variável de ambiente ou constante) para a URL base, a ser trocada por produção depois:
+| Uso | URL |
+|-----|-----|
+| **Desenvolvimento (ngrok atual)** | `https://vulnerably-bilabiate-andreas.ngrok-free.dev` |
+| **Produção** | Substituir pela URL definitiva da API ao fazer deploy (use variável de ambiente, ex.: `REPORT_API_BASE_URL`) |
 
-| Uso | Valor sugerido |
-|-----|----------------|
-| **Desenvolvimento** | URL do ngrok enquanto o túnel estiver ativo (ex.: `https://xxxx.ngrok-free.dev`) |
-| **Produção** | URL definitiva da API de relatórios (substituir o placeholder ao fazer deploy) |
-
-Exemplo de placeholder no código: `REPORT_API_BASE_URL` ou `VITE_REPORT_API_BASE_URL` (ou equivalente no seu stack). **Não** hardcodar a URL do ngrok; ao mudar o túnel ou ir para produção, apenas altere a variável.
+Em produção, use um placeholder (variável de ambiente) para a base; em desenvolvimento use a URL do ngrok acima. Quando o túnel mudar, atualize só a variável.
 
 ### 1.2 Endpoint do relatório
 
@@ -29,7 +27,13 @@ Exemplo de placeholder no código: `REPORT_API_BASE_URL` ou `VITE_REPORT_API_BAS
 |-------|--------|
 | **Path do relatório** | `/wrapper/report_lia` |
 
-Chamada completa: `GET {BASE_URL}/wrapper/report_lia?from=YYYY-MM-DD&to=YYYY-MM-DD`
+**URL completa de exemplo (desenvolvimento):**
+
+```
+GET https://vulnerably-bilabiate-andreas.ngrok-free.dev/wrapper/report_lia?from=2026-02-18&to=2026-02-19
+```
+
+O **período (`from` e `to`)** é controlado pelo **date picker da página**: o front envia na query as datas que o usuário escolheu no seletor de período (formato YYYY-MM-DD). Não é necessário enviar mais nada além desses dois parâmetros.
 
 ### 1.3 Resposta padrão
 
@@ -41,23 +45,83 @@ O mesmo JSON é salvo em `cache/report_lia/dashboard_liareport.json` a cada cham
 
 | Parâmetro | Obrigatório | Formato | Exemplo | Descrição |
 |-----------|-------------|---------|---------|-----------|
-| `from` | Sim | YYYY-MM-DD | `2026-02-17` | Data inicial do período |
-| `to`   | Sim | YYYY-MM-DD | `2026-02-19` | Data final do período |
+| `from` | Sim | YYYY-MM-DD | `2026-02-18` | Data inicial do período — **vem do date picker da página** |
+| `to`   | Sim | YYYY-MM-DD | `2026-02-19` | Data final do período — **vem do date picker da página** |
 | `view` | Não | string | `full` | Omitido = resposta tratada (dashboard). `view=full` = JSON otimizado completo. |
+| `compare` | Não | string | `previous_month` | Quando enviar: ver regras em §1.5 (primeira carga e troca de mês). |
 
-O wrapper adiciona internamente `agentId`, `by`, `messageHistory`; o cliente envia apenas `from` e `to`.
+O front envia `from` e `to` em toda requisição (valores do date picker). O wrapper adiciona internamente `agentId`, `by`, `messageHistory`.
 
-### 1.5 Headers
+### 1.5 Comparativo com mês anterior — quando chamar
+
+Para exibir **"vs mês ant.: +X%"** nos cards, o backend devolve `comparativo_mes_anterior` quando a requisição inclui `compare=previous_month`. Isso gera uma **segunda chamada** à API (mês anterior). Regra de uso:
+
+1. **No primeiro momento (carregamento inicial da página)**  
+   Chamar **com** `compare=previous_month`. Ex.: `?from=2026-02-01&to=2026-02-19&compare=previous_month`.  
+   O usuário já vê os dados do período e o comparativo com o mês anterior (ex.: fev vs jan).
+
+2. **Ao apenas atualizar o período dentro do mesmo mês**  
+   Chamar **somente** `from` e `to` (sem `compare`). Ex.: usuário muda de 1–15 fev para 1–20 fev → `?from=2026-02-01&to=2026-02-20`.  
+   Atualizam só os dados do período; o comparativo já exibido pode ser mantido no front (ou escondido, conforme o design).
+
+3. **Ao trocar de mês no date picker**  
+   Chamar de novo **com** `compare=previous_month`. Ex.: usuário escolhe março → `?from=2026-03-01&to=2026-03-19&compare=previous_month` (março vs fev). Se voltar para fevereiro → `?from=2026-02-01&to=2026-02-28&compare=previous_month` (fev vs jan).  
+   Assim o comparativo é sempre do mês selecionado em relação ao mês anterior.
+
+**Resumo:** usar `compare=previous_month` no **carregamento inicial** e sempre que o **mês selecionado mudar**. Não usar quando só mudar os dias dentro do mesmo mês.
+
+| Parâmetro | Valor | Descrição |
+|-----------|--------|-----------|
+| `compare` | `previous_month` | Incluir na primeira chamada e ao trocar de mês. O backend faz segunda chamada para o mês anterior e devolve `comparativo_mes_anterior`. |
+
+**Exemplos:**
+
+- Primeira carga (fev): `GET .../wrapper/report_lia?from=2026-02-01&to=2026-02-19&compare=previous_month`
+- Só atualizar período (mesmo mês): `GET .../wrapper/report_lia?from=2026-02-01&to=2026-02-28`
+- Troca para março: `GET .../wrapper/report_lia?from=2026-03-01&to=2026-03-31&compare=previous_month`
+- Volta para fev: `GET .../wrapper/report_lia?from=2026-02-01&to=2026-02-28&compare=previous_month`
+
+**Comportamento do backend:**
+
+- Sem `compare`: uma chamada; resposta só com `visao_geral`.
+- Com `compare=previous_month`: usa `from` para calcular o mês anterior (ex.: 2026-02-01 → jan: 2026-01-01 a 2026-01-31), faz a segunda chamada e preenche `comparativo_mes_anterior`.
+
+**Formato de `comparativo_mes_anterior`:**
+
+Objeto com uma entrada por métrica de card que tem comparativo. Cada entrada tem `atual`, `anterior` e `variacao_percent` (número, ex.: `15.28` para +15,28%). O front só precisa exibir o texto "vs mês ant.: +15,3%" (ou "-10,2%") usando `variacao_percent`.
+
+Métricas incluídas: `total_conversas`, `mensagens_lia`, `menores_de_18`, `fora_do_horario_count`, `percentual_menores_18`, `fora_do_horario_percent`.
+
+Exemplo de trecho da resposta:
+
+```json
+{
+  "visao_geral": { ... },
+  "comparativo_mes_anterior": {
+    "total_conversas": { "atual": 513, "anterior": 445, "variacao_percent": 15.28 },
+    "mensagens_lia": { "atual": 2470, "anterior": 2100, "variacao_percent": 17.62 },
+    "menores_de_18": { "atual": 36, "anterior": 30, "variacao_percent": 20.0 },
+    "fora_do_horario_count": { "atual": 233, "anterior": 200, "variacao_percent": 16.5 },
+    "percentual_menores_18": { "atual": 7.02, "anterior": 6.5, "variacao_percent": 8.0 },
+    "fora_do_horario_percent": { "atual": 45.42, "anterior": 42.0, "variacao_percent": 8.14 }
+  }
+}
+```
+
+Se `compare=previous_month` não for enviado, a resposta **não** terá a chave `comparativo_mes_anterior`. Se houver erro ao calcular ou buscar o mês anterior, a chave virá como `null`. O front pode manter o card sem trend ou mostrar "—" quando não houver comparativo.
+
+### 1.6 Headers
 
 - Não é necessário enviar `X-API-Key` (o wrapper envia para a API real).
 - O cliente pode enviar `Accept: application/json` se quiser.
 
-### 1.6 Resumo de configuração
+### 1.7 Resumo de configuração
 
-- **URL base:** usar placeholder (ex.: variável de ambiente), substituível por ngrok em dev ou URL de produção.
+- **URL base (dev):** `https://vulnerably-bilabiate-andreas.ngrok-free.dev` — em produção, use variável de ambiente.
 - **Rota do relatório:** `/wrapper/report_lia`
 - **Método:** GET
-- **Parâmetros controlados pelo front:** somente `from` e `to` (datas do seletor de período).
+- **Período:** `from` e `to` em toda requisição (date picker).
+- **Comparativo:** enviar `compare=previous_month` (1) no **carregamento inicial** e (2) sempre que o usuário **trocar de mês**. Ao mudar só os dias dentro do mesmo mês, chamar só `from` e `to` (atualizar só os dados do período).
 
 ---
 
@@ -67,13 +131,14 @@ A resposta padrão é um objeto com uma chave por página. **Atualmente está im
 
 ### 2.0 Conferir e chamar no front
 
-- **URL de exemplo (troque pela sua base URL / ngrok):**  
-  `GET {BASE_URL}/wrapper/report_lia?from=2026-02-17&to=2026-02-19`
+- **URL correta (ngrok atual):**  
+  `GET https://vulnerably-bilabiate-andreas.ngrok-free.dev/wrapper/report_lia?from=2026-02-18&to=2026-02-19`  
+  A parte **`from=...&to=...`** é montada pelo **date picker da página**: o usuário escolhe o período e o front adiciona essas query params na chamada.
 - **Método:** GET, sem `X-API-Key`.
 - **Resposta:** objeto com `visao_geral`; use `response.visao_geral` para preencher cards e gráficos.
-- **Conferência:** para o mesmo período, a resposta deve bater com o JSON abaixo (ou com o arquivo `cache/report_lia/dashboard_liareport.json` após uma chamada local). Se a base URL estiver correta e o wrapper estiver no ar, o front deve receber exatamente essa estrutura.
+- **Conferência:** para o mesmo período, a resposta deve bater com o JSON abaixo (ou com `cache/report_lia/dashboard_liareport.json` após uma chamada local).
 
-Exemplo real (período 2026-02-17 a 2026-02-19 — mesmo retorno que o wrapper devolve e que fica em `dashboard_liareport.json`):
+Exemplo real (período 2026-02-18 a 2026-02-19 — mesmo retorno da URL acima; também salvo em `dashboard_liareport.json`):
 
 ```json
 {
@@ -192,9 +257,9 @@ Quando for necessário o relatório completo, use `?view=full`. A estrutura resu
 
 ## 4. Checklist de configuração
 
-- [ ] Base URL da API em placeholder (variável de ambiente ou constante), sem URL do ngrok hardcoded.
+- [ ] Base URL da API: em dev use `https://vulnerably-bilabiate-andreas.ngrok-free.dev`; em produção use variável de ambiente.
 - [ ] Path do relatório: `/wrapper/report_lia`
-- [ ] Seletor de período envia `from` e `to` em YYYY-MM-DD
+- [ ] **Date picker da página** envia `from` e `to` (YYYY-MM-DD) na query; o front monta a URL com o período escolhido pelo usuário.
 - [ ] Chamada GET sem header X-API-Key
 - [ ] Tratamento da resposta: usar `response.visao_geral` para a página Visão Geral e atualizar os campos conforme a tabela 2.1
 - [ ] Remoção no projeto: nenhuma menção ou tag ao nome "Lovable" (ou outra ferramenta específica) no código ou comentários; usar termos neutros (front, aplicação, dashboard, cliente).
@@ -203,5 +268,5 @@ Quando for necessário o relatório completo, use `?view=full`. A estrutura resu
 
 ## 5. URL de desenvolvimento vs produção
 
-- **Durante o desenvolvimento:** use a URL do ngrok no placeholder (ex.: variável de ambiente). Quando o túnel mudar, atualize apenas essa variável.
-- **Em produção:** substitua o placeholder pela URL definitiva da API de relatórios; não deve ser necessário alterar lógica de código, apenas a configuração da base URL.
+- **Desenvolvimento:** URL atual do ngrok: `https://vulnerably-bilabiate-andreas.ngrok-free.dev`. O período na URL (`from` e `to`) é preenchido pelo **date picker da página**.
+- **Produção:** substitua a base URL pela URL definitiva da API (variável de ambiente); a lógica de montar a query com as datas do date picker permanece a mesma.

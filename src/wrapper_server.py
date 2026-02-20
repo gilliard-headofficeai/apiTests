@@ -4,6 +4,8 @@ Repassa query params à API real, salva bruto, otimiza e devolve JSON otimizado.
 Arquivos no cache: raw_<slug>.json, optimized_<slug>.json e dashboard_<slug>.json; cada chamada substitui.
 Responsabilidade: orquestrar uma requisição (fetch -> save raw -> optimize -> save optimized -> run_comparison -> return); ponto de entrada HTTP do projeto.
 """
+from datetime import date, timedelta
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -12,7 +14,11 @@ from src.api_client import fetch_json
 from src.storage import save_raw, save_optimized, save_dashboard
 from src.optimizer import optimize_report_response
 from src.compare_report import run_comparison
-from src.dashboard_treatments import build_dashboard_payload
+from src.dashboard_treatments import (
+    build_dashboard_payload,
+    build_visao_geral,
+    build_comparativo_mes_anterior,
+)
 
 app = FastAPI(
     title="Wrapper API Report",
@@ -36,6 +42,7 @@ async def wrapper_get(endpoint_key: str, request: Request):
         )
     query_params = dict(request.query_params)
     view_full = query_params.pop("view", None) == "full"
+    compare_previous_month = query_params.pop("compare", None) == "previous_month"
     params = {**config.get("default_params", {}), **query_params}
     try:
         raw = fetch_json(endpoint_key, params=params)
@@ -51,6 +58,21 @@ async def wrapper_get(endpoint_key: str, request: Request):
             headers={"X-Wrapper-View": "full"},
         )
     payload = build_dashboard_payload(optimized)
+    if compare_previous_month and params.get("from"):
+        try:
+            from_str = params["from"]
+            d = date.fromisoformat(from_str)
+            first_curr = d.replace(day=1)
+            prev_end = first_curr - timedelta(days=1)
+            prev_start = prev_end.replace(day=1)
+            params_anterior = {**params, "from": prev_start.isoformat(), "to": prev_end.isoformat()}
+            raw_anterior = fetch_json(endpoint_key, params=params_anterior)
+            optimized_anterior = optimize_report_response(raw_anterior)
+            visao_atual = payload["visao_geral"]
+            visao_anterior = build_visao_geral(optimized_anterior)
+            payload["comparativo_mes_anterior"] = build_comparativo_mes_anterior(visao_atual, visao_anterior)
+        except (ValueError, KeyError) as e:
+            payload["comparativo_mes_anterior"] = None
     save_dashboard(endpoint_key, payload, params=params, timestamp="latest")
     return JSONResponse(
         content=payload,
