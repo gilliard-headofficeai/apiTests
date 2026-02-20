@@ -45,13 +45,75 @@ def _idade_em_anos(data_nascimento: Any) -> int | None:
     return anos if anos >= 0 else None
 
 
+# UFs válidas do Brasil (27 estados + DF) — siglas de 2 letras
+_UFS_VALIDAS = frozenset(
+    {"AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"}
+)
+
+# Valores corrompidos ou errados (encoding/typo) → sigla válida
+_UF_NORMALIZAR = {
+    "SÃ": "SC",
+    "RI": "RJ",
+    "SA": "SE",
+}
+
+# Sigla → nome completo (resposta usa nome para evitar siglas corrompidas para o cliente)
+_UF_PARA_NOME: dict[str, str] = {
+    "AC": "Acre",
+    "AL": "Alagoas",
+    "AM": "Amazonas",
+    "AP": "Amapá",
+    "BA": "Bahia",
+    "CE": "Ceará",
+    "DF": "Distrito Federal",
+    "ES": "Espírito Santo",
+    "GO": "Goiás",
+    "MA": "Maranhão",
+    "MG": "Minas Gerais",
+    "MS": "Mato Grosso do Sul",
+    "MT": "Mato Grosso",
+    "PA": "Pará",
+    "PB": "Paraíba",
+    "PE": "Pernambuco",
+    "PI": "Piauí",
+    "PR": "Paraná",
+    "RJ": "Rio de Janeiro",
+    "RN": "Rio Grande do Norte",
+    "RO": "Rondônia",
+    "RR": "Roraima",
+    "RS": "Rio Grande do Sul",
+    "SC": "Santa Catarina",
+    "SE": "Sergipe",
+    "SP": "São Paulo",
+    "TO": "Tocantins",
+}
+
+
+def _normalizar_uf(sigla: str) -> str | None:
+    """Retorna UF válida (sigla de 2 letras) ou None. Corrige valores corrompidos/typos."""
+    if not sigla or len(sigla) < 2:
+        return None
+    uf = sigla.strip().upper()[:2]
+    uf = _UF_NORMALIZAR.get(uf, uf)
+    return uf if uf in _UFS_VALIDAS else None
+
+
 def _extrair_estado(item: dict) -> str | None:
-    """Extrai estado do item (dataCollectFromUser.state). Retorna string normalizada ou None."""
+    """
+    Extrai estado do item. Preferência: dataCollectFromUser.state ou .estado (sigla).
+    Retorna sigla normalizada (válida) ou None. Uso interno; a resposta expõe nome completo.
+    """
     dcu = item.get("dataCollectFromUser") if isinstance(item.get("dataCollectFromUser"), dict) else {}
-    state = dcu.get("state")
+    # Origem pode vir como "state" (en) ou "estado" (pt) após otimização
+    state = dcu.get("state") or dcu.get("estado")
     if state is None or not isinstance(state, str):
         return None
-    return state.strip().upper()[:2] if state.strip() else None
+    return _normalizar_uf(state.strip())
+
+
+def _sigla_para_nome_estado(sigla: str) -> str:
+    """Retorna o nome completo do estado para exibição. Se sigla desconhecida, devolve a própria sigla."""
+    return _UF_PARA_NOME.get(sigla.upper(), sigla)
 
 
 def _extrair_data_atendimento(item: dict) -> datetime | None:
@@ -145,10 +207,14 @@ def build_visao_geral(optimized: dict) -> dict:
     percentual_menores_18 = round((menores_de_18 / total_conversas * 100), 2) if total_conversas else 0
     fora_do_horario_percent = round((fora_do_horario_count / total_conversas * 100), 2) if total_conversas else 0
 
+    # Distribuição por estado: chave = nome completo (evita siglas corrompidas para o cliente)
+    distribuicao_nomes = {_sigla_para_nome_estado(uf): count for uf, count in distribuicao_por_estado.items()}
+    distribuicao_nomes = dict(sorted(distribuicao_nomes.items()))
+
     return {
         "total_conversas": total_conversas,
         "mensagens_lia": mensagens_lia,
-        "distribuicao_por_estado": dict(distribuicao_por_estado),
+        "distribuicao_por_estado": distribuicao_nomes,
         "faixa_etaria": faixa_etaria,
         "menores_de_18": menores_de_18,
         "percentual_menores_18": percentual_menores_18,
@@ -170,7 +236,7 @@ def build_visao_geral(optimized: dict) -> dict:
 def build_dashboard_payload(optimized: dict) -> dict:
     """
     Retorna o payload completo do dashboard: uma chave por "página".
-    O front (ex.: Lovable) chama uma única API e aninha por tela.
+    O front chama uma única API e aninha por tela.
     """
     return {
         "visao_geral": build_visao_geral(optimized),

@@ -1,47 +1,68 @@
 """
-Sobe o servidor wrapper e inicia ngrok (ngrok http 8000) para teste (ex.: Lovable).
-Uso: python main.py
-- Servidor local: http://localhost:8000
-- Ngrok roda em subprocess; use a URL que aparecer no terminal do ngrok no Lovable.
-Responsabilidade: ponto de entrada para desenvolvimento; inicia wrapper em thread e expõe com ngrok.
+Um comando sobe o servidor wrapper e abre o ngrok em outra janela.
+Este terminal fica com os logs do servidor; o ngrok roda na janela do CMD que abrir.
+Uso:
+  python main.py         # Abre ngrok em nova janela + servidor aqui (logs neste terminal)
+  python main.py --no-ngrok   # Só o servidor (sem abrir ngrok)
 """
+import argparse
 import subprocess
 import sys
 import time
-import threading
 
 from src.config import WRAPPER_PORT
 from src.wrapper_server import serve
 
 
-def _run_server():
-    """Roda uvicorn em thread para não bloquear o main."""
-    serve()
+def _open_ngrok_in_new_window():
+    """Abre ngrok em uma nova janela (CMD no Windows) para não misturar logs com o servidor."""
+    if sys.platform == "win32":
+        # start cmd /k = nova janela CMD que mantém aberta com ngrok
+        subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", "ngrok", "http", str(WRAPPER_PORT)])
+    else:
+        for cmd in [
+            ["xterm", "-e", "ngrok", "http", str(WRAPPER_PORT)],
+            ["gnome-terminal", "--", "ngrok", "http", str(WRAPPER_PORT)],
+        ]:
+            try:
+                subprocess.Popen(cmd)
+                return
+            except FileNotFoundError:
+                continue
+        print("Rode em outro terminal: ngrok http", WRAPPER_PORT, file=sys.stderr)
 
 
 if __name__ == "__main__":
-    server_thread = threading.Thread(target=_run_server, daemon=True)
-    server_thread.start()
-    time.sleep(2)
+    parser = argparse.ArgumentParser(
+        description="Wrapper API Report: sobe o servidor e abre ngrok em outra janela (um comando só)"
+    )
+    parser.add_argument(
+        "--no-ngrok",
+        action="store_true",
+        help="Sobe apenas o servidor, sem abrir a janela do ngrok",
+    )
+    args = parser.parse_args()
 
-    print()
-    print("=" * 60)
-    print(f"Wrapper rodando em http://localhost:{WRAPPER_PORT}")
-    print("Iniciando ngrok http 8000...")
-    print("Use a URL HTTPS que o ngrok mostrar no Lovable, ex.:")
-    print("  https://xxxx.ngrok-free.app/wrapper/report_lia?from=2026-01-01&to=2026-01-14")
-    print("=" * 60)
-    print()
-
-    try:
-        subprocess.run(["ngrok", "http", str(WRAPPER_PORT)])
-    except FileNotFoundError:
-        print("Ngrok não encontrado no PATH. Rode em outro terminal: ngrok http 8000", file=sys.stderr)
+    if not args.no_ngrok:
         try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            sys.exit(0)
-    except KeyboardInterrupt:
-        print("\nEncerrando.")
-        sys.exit(0)
+            _open_ngrok_in_new_window()
+        except Exception as e:
+            print("Não foi possível abrir o ngrok em outra janela:", e, file=sys.stderr)
+            print("Rode manualmente em outro terminal: ngrok http", WRAPPER_PORT, file=sys.stderr)
+        time.sleep(1)
+        print()
+        print("=" * 60)
+        print(f"Wrapper rodando em http://localhost:{WRAPPER_PORT}")
+        print("Ngrok aberto em outra janela. Use a URL HTTPS no front.")
+        print("Logs das chamadas aparecem abaixo.")
+        print("=" * 60)
+        print()
+    else:
+        print()
+        print("=" * 60)
+        print(f"Wrapper rodando em http://localhost:{WRAPPER_PORT}")
+        print("Logs das chamadas aparecem neste terminal.")
+        print("=" * 60)
+        print()
+
+    serve()

@@ -1,235 +1,207 @@
-Este documento descreve como configurar o Lovable para consumir o wrapper de relatório (report_lia) e, se necessário, como mapear/tratar o JSON otimizado para os campos dos dashboards do Lovable.
+# Guia de configuração — API de relatório para dashboards
+
+Este documento descreve como configurar a aplicação de front/dashboard para consumir o wrapper de relatório (`report_lia`), quais campos da resposta usar e como trocar a URL de desenvolvimento (ngrok) pela URL de produção depois.
+
+**Condições atuais:**
+- A resposta padrão do wrapper é um JSON tratado por página. **De momento apenas a página "Visão Geral" está coberta** por esse formato; outras páginas terão chaves adicionais no futuro.
+- A **URL base da API** (ngrok em desenvolvimento) deve ser tratada como **placeholder**: use uma variável de ambiente ou constante (ex.: `REPORT_API_BASE_URL`) para poder trocar por uma URL de produção sem alterar código.
+
+**Requisito de código:** Remover de **todo o projeto** menções e tags ao nome "Lovable" (ou qualquer ferramenta específica). O repositório deve ser agnóstico de ferramenta: referir-se a "front", "aplicação", "dashboard" ou "cliente" em comentários e documentação.
 
 ---
 
-## 1. Configuração da API no Lovable
+## 1. Configuração da API
 
-### 1.1 Base URL da API
+### 1.1 Base URL da API (placeholder)
 
-Use a URL pública do ngrok (troque quando o túnel mudar):
+Use um **placeholder** configurável (variável de ambiente ou constante) para a URL base, a ser trocada por produção depois:
 
-| Campo no Lovable | Valor |
-|------------------|--------|
-| **Base URL** | `https://vulnerably-bilabiate-andreas.ngrok-free.dev` |
+| Uso | Valor sugerido |
+|-----|----------------|
+| **Desenvolvimento** | URL do ngrok enquanto o túnel estiver ativo (ex.: `https://xxxx.ngrok-free.dev`) |
+| **Produção** | URL definitiva da API de relatórios (substituir o placeholder ao fazer deploy) |
+
+Exemplo de placeholder no código: `REPORT_API_BASE_URL` ou `VITE_REPORT_API_BASE_URL` (ou equivalente no seu stack). **Não** hardcodar a URL do ngrok; ao mudar o túnel ou ir para produção, apenas altere a variável.
 
 ### 1.2 Endpoint do relatório
 
-| Campo no Lovable | Valor |
-|------------------|--------|
+| Campo | Valor |
+|-------|--------|
 | **Path do relatório** | `/wrapper/report_lia` |
 
-### 1.3 Chamada completa (GET)
+Chamada completa: `GET {BASE_URL}/wrapper/report_lia?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
-**Resposta padrão do wrapper:** JSON tratado para dashboards (chave `visao_geral` com total_conversas, mensagens_lia, etc.). O Lovable chama uma vez e aninha `response.visao_geral` nos cards e gráficos da Visão Geral.
+### 1.3 Resposta padrão
 
-```
-GET https://vulnerably-bilabiate-andreas.ngrok-free.dev/wrapper/report_lia?from=YYYY-MM-DD&to=YYYY-MM-DD
-```
+A resposta **padrão** do wrapper (sem `view=full`) é o JSON tratado para dashboards. O front chama uma vez e usa `response.visao_geral` para preencher a página **Visão Geral**. Não é necessário enviar `view=dashboard`; use `view=full` só se precisar do relatório otimizado completo.
 
-Não é necessário enviar `view=dashboard`: o wrapper já devolve o tratado por padrão. Use `view=full` só se precisar do relatório otimizado completo.
-
-O mesmo JSON da resposta é salvo em `cache/report_lia/dashboard_liareport.json` a cada chamada, para conferência local (ex.: após testar com `https://...ngrok-free.dev/wrapper/report_lia?from=2026-01-01&to=2026-02-19`).
+O mesmo JSON é salvo em `cache/report_lia/dashboard_liareport.json` a cada chamada, para conferência local.
 
 ### 1.4 Parâmetros de query
 
 | Parâmetro | Obrigatório | Formato | Exemplo | Descrição |
 |-----------|-------------|---------|---------|-----------|
-| `from` | Sim | YYYY-MM-DD | `2026-01-01` | Data inicial do período |
-| `to`   | Sim | YYYY-MM-DD | `2026-01-14` | Data final do período |
-| `view` | Não | string | `full` | Omitido = resposta tratada (dashboard). `view=full` = JSON otimizado completo (relatório). |
+| `from` | Sim | YYYY-MM-DD | `2026-02-17` | Data inicial do período |
+| `to`   | Sim | YYYY-MM-DD | `2026-02-19` | Data final do período |
+| `view` | Não | string | `full` | Omitido = resposta tratada (dashboard). `view=full` = JSON otimizado completo. |
 
-O wrapper adiciona internamente `agentId`, `by`, `messageHistory`; o Lovable envia apenas `from` e `to`.
+O wrapper adiciona internamente `agentId`, `by`, `messageHistory`; o cliente envia apenas `from` e `to`.
 
 ### 1.5 Headers
 
-- **Não** é necessário enviar `X-API-Key` (o wrapper envia para a API real).
-- O Lovable pode enviar apenas `Accept: application/json` se quiser.
+- Não é necessário enviar `X-API-Key` (o wrapper envia para a API real).
+- O cliente pode enviar `Accept: application/json` se quiser.
 
-### 1.6 Resumo para preencher no Lovable
+### 1.6 Resumo de configuração
 
-- **URL base da API de relatório:** `https://vulnerably-bilabiate-andreas.ngrok-free.dev`
-- **Rota/caminho do relatório:** `/wrapper/report_lia`
+- **URL base:** usar placeholder (ex.: variável de ambiente), substituível por ngrok em dev ou URL de produção.
+- **Rota do relatório:** `/wrapper/report_lia`
 - **Método:** GET
-- **Parâmetros que o Lovable controla:** somente `from` e `to` (datas do date picker).
+- **Parâmetros controlados pelo front:** somente `from` e `to` (datas do seletor de período).
 
 ---
 
-## 2. Resposta padrão (tratada para dashboards)
+## 2. Resposta tratada — Visão Geral (exemplo real)
 
-A resposta **padrão** do wrapper é um objeto com uma chave por página, por exemplo:
+A resposta padrão é um objeto com uma chave por página. **Atualmente está implementada apenas a chave `visao_geral`**, que alimenta a página **Visão Geral**. Os campos abaixo devem ser atualizados no front com os valores recebidos.
+
+### 2.0 Conferir e chamar no front
+
+- **URL de exemplo (troque pela sua base URL / ngrok):**  
+  `GET {BASE_URL}/wrapper/report_lia?from=2026-02-17&to=2026-02-19`
+- **Método:** GET, sem `X-API-Key`.
+- **Resposta:** objeto com `visao_geral`; use `response.visao_geral` para preencher cards e gráficos.
+- **Conferência:** para o mesmo período, a resposta deve bater com o JSON abaixo (ou com o arquivo `cache/report_lia/dashboard_liareport.json` após uma chamada local). Se a base URL estiver correta e o wrapper estiver no ar, o front deve receber exatamente essa estrutura.
+
+Exemplo real (período 2026-02-17 a 2026-02-19 — mesmo retorno que o wrapper devolve e que fica em `dashboard_liareport.json`):
 
 ```json
 {
-  "visao_geral": {
-    "total_conversas": 2632,
-    "mensagens_lia": 18424,
-    "distribuicao_por_estado": { "SP": 1380, "MG": 290, "RJ": 245, ... },
-    "faixa_etaria": { "0-17": 87, "18-24": 420, "25-34": 890, ... },
-    "menores_de_18": 87,
-    "percentual_menores_18": 3.3,
-    "fora_do_horario_count": 1000,
-    "fora_do_horario_percent": 38,
-    "atendimentos_por_hora": { "08:00": 120, "09:00": 180, ... },
-    "volume_conversas_por_dia": { "2026-01-01": 150, "2026-01-02": 162, ... },
-    "cohort_por_dia": { ... },
-    "compras_confirmadas": null,
-    "ticket_medio": null,
-    "leads_qualificados": null,
-    "agendamentos": null,
-    "taxa_conversao": null,
-    "efetividade_lia": null
-  }
+    "visao_geral": {
+        "total_conversas": 513,
+        "mensagens_lia": 2470,
+        "distribuicao_por_estado": {
+            "Goiás": 2,
+            "Minas Gerais": 132,
+            "Paraíba": 1,
+            "Rio de Janeiro": 102,
+            "Santa Catarina": 4,
+            "Sergipe": 1,
+            "São Paulo": 262
+        },
+        "faixa_etaria": {
+            "0-17": 36,
+            "18-24": 82,
+            "25-34": 199,
+            "35-44": 128,
+            "45-54": 35,
+            "55+": 9
+        },
+        "menores_de_18": 36,
+        "percentual_menores_18": 7.02,
+        "fora_do_horario_count": 233,
+        "fora_do_horario_percent": 45.42,
+        "atendimentos_por_hora": {
+            "00:00": 31,
+            "01:00": 23,
+            "02:00": 22,
+            "03:00": 3,
+            "04:00": 6,
+            "06:00": 2,
+            "09:00": 3,
+            "10:00": 4,
+            "11:00": 10,
+            "12:00": 30,
+            "13:00": 35,
+            "14:00": 31,
+            "15:00": 49,
+            "16:00": 43,
+            "17:00": 45,
+            "18:00": 30,
+            "19:00": 32,
+            "20:00": 29,
+            "21:00": 35,
+            "22:00": 24,
+            "23:00": 26
+        },
+        "volume_conversas_por_dia": {
+            "2026-02-17": 232,
+            "2026-02-18": 246,
+            "2026-02-19": 35
+        },
+        "cohort_por_dia": {
+            "2026-02-17": 232,
+            "2026-02-18": 246,
+            "2026-02-19": 35
+        },
+        "compras_confirmadas": null,
+        "ticket_medio": null,
+        "leads_qualificados": null,
+        "agendamentos": null,
+        "taxa_conversao": null,
+        "efetividade_lia": null
+    }
 }
 ```
 
-O front usa `response.visao_geral` para preencher os cards e gráficos da página Visão Geral. Campos `null` dependem de CSV ou regras de negócio (ver seção 3).
+### 2.1 Mapeamento para a página Visão Geral
+
+| Campo na resposta | Tipo | Uso na Visão Geral |
+|-------------------|------|---------------------|
+| `total_conversas` | number | Card/indicador total de conversas |
+| `mensagens_lia` | number | Card total de mensagens do agente |
+| `distribuicao_por_estado` | object (nome do estado → count) | Gráfico de distribuição por estado. Chaves são **nomes completos** (ex.: "São Paulo", "Santa Catarina") para evitar siglas corrompidas ou inválidas. |
+| `faixa_etaria` | object (faixa → count) | Gráfico de faixa etária |
+| `menores_de_18` | number | Card menores de 18 anos |
+| `percentual_menores_18` | number | Percentual sobre total de conversas |
+| `fora_do_horario_count` | number | Card conversas fora do horário |
+| `fora_do_horario_percent` | number | Percentual fora do horário |
+| `atendimentos_por_hora` | object ("HH:00" → count) | Gráfico de atendimentos por hora do dia |
+| `volume_conversas_por_dia` | object (data → count) | Gráfico volume ao longo do tempo |
+| `cohort_por_dia` | object (data → count) | Cohort de conversas por dia |
+| `compras_confirmadas`, `ticket_medio`, `leads_qualificados`, `agendamentos`, `taxa_conversao`, `efetividade_lia` | null (por enquanto) | Dependem de CSV ou regras de negócio; manter como null até integração futura |
+
+Outras páginas do dashboard (além da Visão Geral) serão cobertas por chaves adicionais no mesmo objeto de resposta em versões futuras.
 
 ---
 
-## 2b. Estrutura do JSON otimizado (quando usar view=full)
+## 3. Estrutura do JSON otimizado (view=full)
 
-O que o wrapper devolve ao chamar com **`view=full`** (relatório completo):
+Quando for necessário o relatório completo, use `?view=full`. A estrutura resumida:
 
-### 2.1 Nível raiz
+### 3.1 Nível raiz
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `statusCode` | number | Ex.: 200 |
 | `msg` | string | Ex.: "Report download successfully." |
-| `status` | boolean | Ex.: true |
-| `type` | string | Ex.: "Default" |
-| `meta` | object | (opcional) Metadados |
-| `meta.agent` | object | Dados do agente (ex.: firstName "Lia") — único no topo |
-| `data` | array | Lista de conversas/relatórios (um item por conversa) |
+| `data` | array | Lista de conversas (um item por conversa) |
 
-### 2.2 Cada item de `data[]`
+### 3.2 Cada item de `data[]`
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `_id` | string | ID da conversa |
-| `createdAt` | string | Data/hora ISO (ex.: "2026-01-14T02:39:52.447Z") |
-| `dataCollectFromUser` | object | Dados coletados do usuário (chaves em inglês quando há equivalente) |
+| `createdAt` | string | Data/hora ISO (início da conversa) |
+| `dataCollectFromUser` | object | Dados do usuário (ex.: state, birthDate) |
 | `userName` | string | Nome do usuário |
 | `botMessageCount` | number | Quantidade de mensagens do bot |
-| `aiId` | string | ID do agente |
-| `humanEscalation` | boolean | Se houve escalação humana |
-| `Full Conversation` | array | Histórico de mensagens em ordem |
-
-### 2.3 `dataCollectFromUser` (campos comuns)
-
-Chaves em **inglês** (padronizadas pelo wrapper):  
-`name`, `birthDate`, `cpf`, `phone`, `email`, `zipCode`, `address`, `number`, `city`, `state`.  
-Podem existir outras chaves (perguntas customizadas) em português.
-
-### 2.4 Cada entrada de `Full Conversation[]`
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `message` | string | Texto da mensagem (pode ter quebras `<br>`) |
-| `sender` | string | `"agent"` (bot) ou `"user"` (usuário) — sempre um desses dois valores |
+| `Full Conversation` | array | Histórico de mensagens; cada entrada: `message`, `sender` ("agent" ou "user") |
 
 ---
 
-## 3. Modelagem dos dados — Visão Geral (widget a widget)
+## 4. Checklist de configuração
 
-Cada gráfico/KPI abaixo indica: **fonte no JSON otimizado**, **tratamento** aplicado e se depende de **heurística** ou **CSV externo**. O JSON otimizado é suficiente para a maioria dos widgets; exceções estão marcadas.
-
-### 3.1 Conclusão: usar JSON otimizado
-
-O otimizador só remove duplicatas pt/en em `dataCollectFromUser`, normaliza `sender` para `"agent"`/`"user"`, coloca o agente em `meta.agent` e remove `aiAgent`/`agentId` vazio. Não remove `customer`, `distributionCenter` nem outros campos. **Usar o JSON otimizado** é suficiente e preferível (payload menor, chaves estáveis como `state`, `birthDate`).
-
-### 3.2 Dados disponíveis por conversa (`data[]`)
-
-| Campo | Uso nos dashboards |
-|-------|--------------------|
-| `_id` | Identificador único da conversa |
-| `createdAt` | ISO 8601 — **único timestamp por conversa** (não por mensagem) |
-| `dataCollectFromUser.state` | Distribuição por Estado |
-| `dataCollectFromUser.birthDate` | Faixa etária (calcular idade: hoje - birthDate) |
-| `dataCollectFromUser.customer` | Pode ser objeto ou **array**; quando array, pode ter `distributionCenter[]` com `name` (loja/CD) |
-| `userName`, `botMessageCount`, `humanEscalation` | Métricas e filtros |
-| `Full Conversation[]` | Cada entrada: `message` (texto), `sender` ("agent" ou "user") — **sem timestamp por mensagem** |
-
-Kits e lojas **não** vêm em campos dedicados: aparecem no **texto das mensagens** ou em `dataCollectFromUser.customer[].distributionCenter[].name`.
-
----
-
-### 3.3 Cards do topo (KPIs)
-
-| Métrica | Fonte no JSON | Tratamento | Observação |
-|---------|----------------|------------|------------|
-| **Total de Conversas** | `data.length` | Nenhum | Direto. "vs Jan" exige dados de janeiro (outra chamada ou período). |
-| **Mensagens da LIA** | Soma de `item.botMessageCount` em `data` | Nenhum | Direto. Se ausente, fallback: contar entradas com `sender == "agent"` em Full Conversation. |
-| **Leads Qualificados** | Não existe flag | **Heurística** | Definir regra (ex.: conversa com dataCollectFromUser preenchido + N mensagens do agente). Sem regra, não dá para derivar só do JSON. |
-| **Taxa de Conversão** | Calculada | (Leads Qualificados / Total de Conversas) × 100 | Depende da definição de lead qualificado. |
-| **Ticket Médio** | Não está no JSON | **CSV externo** | Cruzar com CSV de vendas (ex.: por `_id` ou CPF/e-mail). |
-| **Fora do Horário (19h–8h)** | `createdAt` de cada item em `data` | Para cada conversa, extrair hora de `createdAt`; contar quantas caem em 19h–08h; % = (count / total) × 100 | Limitação: só temos hora da **conversa** (início), não de cada mensagem. |
-| **Menores de 18** | `dataCollectFromUser.birthDate` | Calcular idade: (hoje - birthDate); contar conversas com idade &lt; 18 | Direto. "% do total" = (menores 18 / Total de Conversas) × 100. |
-
----
-
-### 3.4 Segunda linha de cards
-
-| Métrica | Fonte no JSON | Tratamento | Observação |
-|---------|----------------|------------|------------|
-| **Agendamentos (visitas agendadas)** | Não existe flag | **Heurística** | Ex.: mensagem do agente com "agendar"/"visita"/"terça-feira às 14h" ou `distributionCenter` preenchido. Ou cruzar com CSV. |
-| **Compras Confirmadas** | Não está no JSON | **CSV externo** | Cruzar com CSV do cliente (ex.: por CPF ou `_id` da conversa). |
-| **Efetividade da LIA (agendados → compradores)** | Calculada | (Compras Confirmadas / Agendamentos) × 100 | Depende de agendamentos (heurística ou CSV) e compras (CSV). |
-
----
-
-### 3.5 Gráficos — Atendimentos e volume
-
-| Gráfico | Fonte no JSON | Tratamento | Observação |
-|---------|----------------|------------|------------|
-| **Atendimentos por Hora do Dia** | `createdAt` de cada item em `data` | Agrupar por hora do dia (0–23) e contar conversas | Um ponto por conversa (hora de início). |
-| **Volume de Conversas ao Longo do Tempo** | `createdAt` | Agrupar por dia; contar conversas por dia. Série "Qualificados" exige definição de lead e mesmo agrupamento | Duas linhas: total conversas/dia e leads qualificados/dia (se a regra existir). |
-
----
-
-### 3.6 Gráficos — Distribuição e funil
-
-| Gráfico | Fonte no JSON | Tratamento | Observação |
-|---------|----------------|------------|------------|
-| **Distribuição por Estado** | `dataCollectFromUser.state` | Contar conversas por `state`; converter contagens em % do total | Chave em inglês no otimizado (`state`). Valores: siglas (SP, MG, RJ, etc.). |
-| **Faixa Etária** | `dataCollectFromUser.birthDate` | Calcular idade; classificar em: Menor de 18, 18–24, 25–34, 35–44, 45–54, 55+; contar por faixa | "Menor de 18" em destaque (ex.: barra vermelha) conforme mock. |
-| **Kits Mais Sugeridos** | Apenas no **texto** de `Full Conversation[].message` (sender "agent") | **Parsing**: buscar em mensagens do agente padrões como "**(Nome do Kit)**" ou "kit ... **Nome do Kit**"; normalizar nomes; contar por kit | Lista canônica de kits e mapear variações. |
-| **Funil de Conversão** | Conversas: `data.length`. Demais: heurística ou CSV | Conversas = total. Leads/Agendamentos = conforme regras ou CSV. Percentuais em relação ao total | Sem definição de "qualificado" e "agendamento", usar heurísticas documentadas ou CSV. |
-| **Cohort de Mensagens (conversas/dia)** | `createdAt` | Agrupar por semana (ex.: Sem 1 Jan, Sem 2 Jan) e por dia da semana (Seg–Dom); contar conversas por célula | Matriz: linhas = semanas, colunas = dias da semana. |
-
----
-
-### 3.7 Top Lojas Mais Escolhidas
-
-| Fonte no JSON | Tratamento | Observação |
-|---------------|------------|------------|
-| (1) `dataCollectFromUser.customer` (quando array) → `customer[].distributionCenter[].name` | Quando existir, extrair `name`; normalizar para nome de loja (ex.: "Mega Park") | Pode haver duplicata de nome em cidades diferentes; considerar chave composta (nome + cidade/UF). |
-| (2) Texto em `Full Conversation[].message` | Parsing: mensagens do agente que citam loja (ex.: "Cacau Show - Mega Park") | Unificar com (1) via lista canônica de nomes. |
-
----
-
-### 3.8 Resumo: o que temos vs o que falta
-
-- **Só com o JSON otimizado:** Total de Conversas, Mensagens da LIA, Fora do Horário (por início da conversa), Menores de 18, Atendimentos por Hora, Volume de Conversas ao Longo do Tempo, Distribuição por Estado, Faixa Etária, Cohort conversas/dia. Taxa de Conversão e Efetividade dependem de definições.
-- **Com heurísticas (sem CSV):** Leads Qualificados, Agendamentos, Kits Mais Sugeridos, Top Lojas (parcial), Funil (parcial). Precisam de regras de negócio documentadas.
-- **Com CSV externo (obrigatório para):** Compras Confirmadas, Ticket Médio; e opcionalmente cruzamento para validar Agendamentos e Leads. Definir chave de junção (ex.: CPF, e-mail, `_id`).
-
----
-
-## 4. Checklist de configuração no Lovable
-
-- [ ] Base URL definida: `https://vulnerably-bilabiate-andreas.ngrok-free.dev`
+- [ ] Base URL da API em placeholder (variável de ambiente ou constante), sem URL do ngrok hardcoded.
 - [ ] Path do relatório: `/wrapper/report_lia`
-- [ ] Date picker envia `from` e `to` em YYYY-MM-DD
+- [ ] Seletor de período envia `from` e `to` em YYYY-MM-DD
 - [ ] Chamada GET sem header X-API-Key
-- [ ] Tratamento da resposta: usar `response.data` como lista de conversas
-- [ ] Para cada conversa: `item["Full Conversation"]` na ordem; `item.dataCollectFromUser` para dados do usuário; `sender` sempre `"agent"` ou `"user"`
+- [ ] Tratamento da resposta: usar `response.visao_geral` para a página Visão Geral e atualizar os campos conforme a tabela 2.1
+- [ ] Remoção no projeto: nenhuma menção ou tag ao nome "Lovable" (ou outra ferramenta específica) no código ou comentários; usar termos neutros (front, aplicação, dashboard, cliente).
 
 ---
 
-## 5. Atualizar quando o ngrok mudar
+## 5. URL de desenvolvimento vs produção
 
-Se a URL do ngrok for alterada (ex.: novo túnel), atualize:
-
-1. Este arquivo: seção 1.1 e 1.6 (Base URL).
-2. A configuração no Lovable (campo onde está a base URL da API de relatório).
+- **Durante o desenvolvimento:** use a URL do ngrok no placeholder (ex.: variável de ambiente). Quando o túnel mudar, atualize apenas essa variável.
+- **Em produção:** substitua o placeholder pela URL definitiva da API de relatórios; não deve ser necessário alterar lógica de código, apenas a configuração da base URL.

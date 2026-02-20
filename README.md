@@ -14,7 +14,7 @@ Projeto que atua como **proxy** da API real de relatórios: chama o backend, per
 
 ```
 apiTests/
-├── main.py                 # Sobe o servidor wrapper e inicia ngrok (um comando só)
+├── main.py                 # Sobe o servidor wrapper; ngrok em outro terminal ou use --ngrok
 ├── src/
 │   ├── config.py           # BASE_URL, CACHE_DIR, WRAPPER_PORT, api_endpoints.json, slug por endpoint
 │   ├── api_client.py       # GET na API real com X-API-Key e query params
@@ -28,7 +28,7 @@ apiTests/
 ├── cache/                  # Por endpoint (ex.: report_lia/): raw_*, optimized_*, dashboard_*, comparison_*
 ├── tests/
 │   └── fixtures/           # Ex.: optimized_liareport_sample.json para testes do dashboard
-└── docs/                   # Guias (Postman, Lovable, etc.)
+└── docs/                   # Guias (Postman, configuração front/dashboard)
 ```
 
 ## Variáveis de ambiente
@@ -46,11 +46,12 @@ No Windows, use `localhost` em `WRAPPER_BASE_URL` (não `0.0.0.0`).
 
 ## Como rodar
 
-- **Servidor + ngrok (um comando):**  
-  `python main.py`  
-  Servidor em `http://localhost:8000`; ngrok expõe a URL HTTPS para uso no Lovable.
+- **Um comando (recomendado):**
+  `python main.py`
+  Abre o ngrok em uma **nova janela** (CMD no Windows) e sobe o servidor **neste terminal**. Os logs das chamadas aparecem aqui; a URL HTTPS fica na janela do ngrok.
 
-- **Só o servidor (sem ngrok):**  
+- **Só o servidor (sem abrir ngrok):**
+  `python main.py --no-ngrok`
   `uvicorn src.wrapper_server:app --host 0.0.0.0 --port 8000`
 
 - **Relatório de comparação a partir do cache:**  
@@ -88,12 +89,12 @@ Para o dashboard, o front pode (futuramente) chamar uma rota que carrega o otimi
 
 ## Documentação adicional
 
-- **docs/postman-report-lia.md** — Como testar o endpoint Report Lia no Postman e com ngrok no Lovable.
-- **docs/lovable-config-guide.md** — Configuração do Lovable para usar o wrapper.
+- **docs/postman-report-lia.md** — Como testar o endpoint Report Lia no Postman e com ngrok.
+- **docs/lovable-config-guide.md** — Guia de configuração da API de relatório para o front/dashboard (URL placeholder, campos Visão Geral, remoção de menções a ferramentas).
 
 ## Resumo por arquivo (para leitura humana)
 
-- **main.py** — Ponto de entrada: inicia o servidor em thread e executa `ngrok http 8000` para expor o wrapper.
+- **main.py** — Ponto de entrada: um comando abre o ngrok em outra janela e sobe o servidor neste terminal (logs aqui); `--no-ngrok` sobe só o servidor.
 - **src/config.py** — Lê `.env` e `config/api_endpoints.json`; expõe BASE_URL, CACHE_DIR, WRAPPER_PORT, GENERAL_REPORT_API_KEY, e funções para path e slug por endpoint.
 - **src/api_client.py** — Faz GET na API real (BASE_URL + path), com query params e header X-API-Key; retorna o JSON.
 - **src/storage.py** — Define a pasta de cache por endpoint e salva raw/optimized/dashboard (raw_&lt;slug&gt;.json, optimized_&lt;slug&gt;.json, dashboard_&lt;slug&gt;.json).

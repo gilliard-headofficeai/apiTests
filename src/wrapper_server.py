@@ -24,7 +24,7 @@ app = FastAPI(
 async def wrapper_get(endpoint_key: str, request: Request):
     """
     Rota encurtada: GET /wrapper/report_lia?from=2026-01-01&to=2026-01-14
-    Resposta padrão: JSON tratado para dashboards (visao_geral, etc.), ideal para o Lovable.
+    Resposta padrão: JSON tratado para dashboards (visao_geral, etc.), pronto para o front.
     Com ?view=full devolve o JSON otimizado completo (relatório bruto tratado).
     """
     config = get_endpoint_config(endpoint_key)

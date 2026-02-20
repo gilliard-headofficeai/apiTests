@@ -35,7 +35,7 @@ GET http://localhost:8000/wrapper/report_lia?from=2026-01-01&to=2026-01-14
 
 Não é necessário enviar header de API key no Postman: o wrapper usa `GENERAL_REPORT_API_KEY` do `.env` ao chamar a API real.
 
-**Resposta padrão:** o wrapper devolve o JSON **tratado para dashboards** (ex.: `visao_geral` com total_conversas, mensagens_lia, distribuicao_por_estado, faixa_etaria, etc.) — ideal para o Lovable.  
+**Resposta padrão:** o wrapper devolve o JSON **tratado para dashboards** (ex.: `visao_geral` com total_conversas, mensagens_lia, etc.), pronto para o front.  
 Para receber o relatório otimizado completo, use **`view=full`** na query.
 
 Exemplo (resposta = dashboard tratado):
@@ -55,41 +55,42 @@ Após cada chamada ao wrapper, na pasta `cache/report_lia/` ficam salvos:
 |---------|----------|
 | `raw_liareport.json` | Resposta bruta da API real |
 | `optimized_liareport.json` | Relatório otimizado (estrutura completa) |
-| **`dashboard_liareport.json`** | **JSON tratado para dashboards** — igual à resposta padrão do wrapper (visao_geral, total_conversas, mensagens_lia, etc.). Use para conferir localmente o que o Postman ou o Lovable recebem. |
+| **`dashboard_liareport.json`** | **JSON tratado para dashboards** — igual à resposta padrão do wrapper (visao_geral, etc.). Use para conferir localmente o que o Postman ou o front recebem. |
 | `comparison_liareport.md` / `.html` / `.json` | Relatórios de comparação raw vs otimizado |
 
 Exemplo com ngrok (mesma resposta tratada):
 ```
-GET https://vulnerably-bilabiate-andreas.ngrok-free.dev/wrapper/report_lia?from=2026-01-01&to=2026-02-19
+GET https://<sua-url-ngrok>.ngrok-free.dev/wrapper/report_lia?from=2026-01-01&to=2026-02-19
 ```
 A resposta (visao_geral, distribuição por estado, faixa etária, atendimentos por hora, etc.) fica também em `cache/report_lia/dashboard_liareport.json`.
 
 ---
 
-## Testar com ngrok (front em outro host, ex.: Lovable)
+## Testar com ngrok (front em outro host)
 
-1. Subir o wrapper com **um comando** (já inicia servidor + ngrok):
+1. **Um comando só:** na pasta do projeto rode:
    ```bash
    python main.py
    ```
-2. No console será impressa a **URL pública do ngrok** (ex.: `https://abc123.ngrok-free.app`). Use-a no Lovable.
+   Isso abre o **ngrok em uma nova janela** (CMD no Windows) e sobe o **servidor neste terminal**. Os logs das chamadas aparecem neste terminal; a URL HTTPS aparece na janela do ngrok.
+2. Na janela do ngrok será impressa a **URL pública** (ex.: `https://abc123.ngrok-free.app`). Use-a no front (variável de ambiente ou config; não hardcodar).
 3. Exemplo de chamada para o front (substitua pela sua URL ngrok):
    ```
    GET https://<sua-url>.ngrok-free.app/wrapper/report_lia?from=2026-01-01&to=2026-01-14
    ```
-4. No Lovable: configure a base URL do relatório como `https://<sua-url>.ngrok-free.app` e o path como `/wrapper/report_lia`; envie só `from` e `to` no período.
+4. No front: configure a base URL do relatório como placeholder (ex.: variável de ambiente) apontando para a URL do ngrok e o path `/wrapper/report_lia`; envie só `from` e `to` no período.
 
 ### Exemplo com URL real (ngrok)
 
 | Uso | Valor |
 |-----|--------|
-| **Base URL (Lovable)** | `https://vulnerably-bilabiate-andreas.ngrok-free.dev` |
+| **Base URL (exemplo dev)** | Use placeholder; ex. ngrok: `https://xxxx.ngrok-free.dev` |
 | **Path do relatório** | `/wrapper/report_lia` |
-| **Chamada completa (GET)** | `https://vulnerably-bilabiate-andreas.ngrok-free.dev/wrapper/report_lia?from=2026-01-01&to=2026-01-14` |
+| **Chamada completa (GET)** | `https://<sua-url-ngrok>.ngrok-free.dev/wrapper/report_lia?from=YYYY-MM-DD&to=YYYY-MM-DD` (substituir por placeholder em produção) |
 
-No Lovable: use a base URL acima e, ao mudar o período no date picker, monte a query com `from` e `to` (YYYY-MM-DD). Não é necessário enviar header `X-API-Key`; o wrapper adiciona isso ao chamar a API real.
+No front: use a base URL em variável de ambiente (substituível por produção); ao mudar o período, monte a query com `from` e `to` (YYYY-MM-DD). Não é necessário enviar header `X-API-Key`; o wrapper adiciona isso ao chamar a API real.
 
-**Requisito:** ngrok instalado e configurado com authtoken (`ngrok config add-authtoken <seu-token>`). O `main.py` inicia o comando `ngrok http 8000` no mesmo processo.
+**Requisito:** ngrok instalado e configurado com authtoken (`ngrok config add-authtoken <seu-token>`). Com `python main.py` o ngrok abre em outra janela automaticamente; para só o servidor use `python main.py --no-ngrok` e rode o ngrok manualmente em outro terminal se precisar.
 
 ---
 
