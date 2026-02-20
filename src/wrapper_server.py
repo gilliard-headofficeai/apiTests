@@ -7,6 +7,7 @@ Responsabilidade: orquestrar uma requisição (fetch -> save raw -> optimize -> 
 from datetime import date, timedelta
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.config import get_endpoint_config, load_endpoints, WRAPPER_PORT
@@ -23,6 +24,15 @@ from src.dashboard_treatments import (
 app = FastAPI(
     title="Wrapper API Report",
     description="Proxy que chama a API real, persiste o bruto e devolve por padrão o JSON tratado para dashboards (visao_geral, etc.).",
+)
+
+# CORS: front (ex.: Lovable) em outro domínio faz preflight OPTIONS antes do GET; sem isso retorna 405
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 
